@@ -245,8 +245,12 @@ static void print_help(void)
 	std::cout << "Run IR uint tests\n";
 	std::cout << "Usage:\n  ";
 	std::cout << ::this_exe
-	          << " [--show-diff] [--no-color] [test folders or files...]\n";
-	std::cout << "  Run all tests if no test folders/files are specified\n";
+	          << " [--show-diff] [--no-color] [--jobs nn]"
+			  << " [test folders or files...]\n"
+			  << "  --show-diff      Print failed test diff to stdout\n"
+			  << "  --no-color       Disable output colorization\n"
+			  << "  --jobs N         Number of parallel jobs\n"
+			  << "  Run all tests if no test folders/files are specified\n";
 }
 
 int main(int argc, char **argv) {
@@ -256,6 +260,9 @@ int main(int argc, char **argv) {
 
 	// Store test folders/files specified by user
 	std::set<std::string> user_files;
+
+	int jobs = 1; // number of parallel jobs
+
 	bool bad_opt = false;     // unsupported option given
 	bool bad_files = false;   // bad file or folder given
 
@@ -270,6 +277,16 @@ int main(int argc, char **argv) {
 		} else if (!std::string(argv[i]).compare("--help")) {
 			print_help();
 			return 0;
+		} else if (!std::string(argv[i]).compare("--jobs")) {
+			// assume --jobs n
+			try {
+				jobs = stoi(std::string(argv[++i]));
+			} catch (...) {
+				std::cerr << ir::colorize("ERROR", ir::RED)
+					<< ": Integer Required [--jobs " << argv[i] << "]\n";
+				bad_opt = true;
+			}
+			// TODO: handle 0 or very big argument later
 		} else if (std::string(argv[i]).find_first_of("-") == 0) {
 			// Unsupported options
 			bad_opt = true;
