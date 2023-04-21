@@ -16,6 +16,10 @@
 #include <exception>
 #include <cstdlib>
 #include <cassert>
+#include <future>
+#include <thread>
+#include <cstdio>
+#include <map>
 
 #ifdef _WIN32
 # include <windows.h>
@@ -34,14 +38,16 @@
 # define IR_ARGS ""
 #endif
 
-uint32_t skipped = 0;
-std::vector<std::string> bad_list;
-std::vector<std::tuple<std::string, std::string>> failed;
-std::vector<std::tuple<std::string, std::string, std::string>> xfailed_list;
+// uint32_t skipped = 0;
+// std::vector<std::string> bad_list;
+// std::vector<std::tuple<std::string, std::string>> failed;
+// std::vector<std::tuple<std::string, std::string, std::string>> xfailed_list;
 bool show_diff = false, colorize = true;
 std::string ir_exe, ir_target;
 std::string this_exe, this_exe_path;
 
+template<typename ... Args>
+static void debug_cerr(const char* fmt, Args... args);
 namespace ir {
 	decltype(auto) trim(std::string s) {
 		const char* ws = " \t\n\r\f\v";
@@ -104,6 +110,7 @@ namespace ir {
 		// Test file path and contents and output filenames
 		std::string irt_file, irt_file_content, ir_file, out_file, exp_file, diff_file;
 		test(const std::string& test_fl) : irt_file{test_fl} {
+			debug_cerr("in test::test() constructor\n");
 			std::ifstream f(test_fl);
 			if (!f) throw "Couldn't read '" + test_fl + "'";
 			std::ostringstream oss;
@@ -215,8 +222,14 @@ namespace ir {
 		}
 	};
 
-	void find_tests_in_dir(std::set<std::string>& user_files, std::vector<std::string>& irt_files) {
+	void find_tests_in_dir(const std::set<std::string>& user_files,
+						   std::vector<std::string>& total_irt_files,
+						   std::vector<std::string>* irt_files,
+						   int jobs) {
 		assert(user_files.size()>0);
+
+		// Evenly distribute each file to different jobs
+		unsigned int file_count = 0;
 
 		for (const auto& f : user_files) {
 			if (std::filesystem::is_directory(f)) {
@@ -225,19 +238,184 @@ namespace ir {
 					std::string fl(ent.path().string());
 					if (fl.length() < 4 || ent.path().extension() != ".irt")
 						continue;
-					irt_files.push_back(fl);
+					irt_files[file_count++ % jobs].push_back(fl);
+					total_irt_files.push_back(fl);
 				}
 			} else {
-				irt_files.push_back(f);
+				irt_files[file_count++ % jobs].push_back(f);
+				total_irt_files.push_back(f);
 			}
 		}
 
-		std::sort(irt_files.begin(),
-		          irt_files.end(),
+		// Sort total irt files - used for test report
+		std::sort(total_irt_files.begin(),
+		          total_irt_files.end(),
 				  [&](const std::string& a, const std::string& b) {
 			          return 1 <= b.compare(a);
 				  });
 	}
+}
+
+struct TestResult
+{
+	int broken {0};
+	int passed {0};
+	int skipped {0};
+	int xfailed {0};
+	int failed {0};
+
+	// Tuple: <test.name, test.irt_file, test.xfail>
+	std::vector<std::tuple<std::string, std::string, std::string>> xfailed_list{};
+	// Tuple: <test.name, test.irt_file>
+	std::vector<std::tuple<std::string, std::string>> failed_list{};
+	// test.irt_file
+	std::vector<std::string> broken_list{};
+	// Map: key: test.irt_file; value: string to console
+	std::map<std::string, std::string> console_buf;
+
+	TestResult& operator+(TestResult& rhs) {
+		broken += rhs.broken;
+		passed += rhs.passed;
+		skipped += rhs.skipped;
+		xfailed += rhs.xfailed;
+		failed += rhs.failed;
+
+#define merge_vector(v1, v2) do { \
+				v1.insert(v1.end(), v2.begin(), v2.end()); \
+			} while(0)
+		merge_vector(xfailed_list, rhs.xfailed_list);
+		merge_vector(failed_list, rhs.failed_list);
+		merge_vector(broken_list, rhs.broken_list);
+#undef merge_vector
+
+		console_buf.merge(rhs.console_buf);
+		return *this;
+	}
+
+	TestResult& operator+=(TestResult& rhs) {
+		return *this + rhs;
+	}
+};
+
+template<typename ... Args>
+static void debug_cerr(const char* fmt, Args... args)
+{
+#ifdef DEBUG
+	std::mutex m;
+	m.lock();
+	std::cerr << std::this_thread::get_id() << ": DEBUG: ";
+	std::fprintf(stderr, fmt, args...);
+	m.unlock();
+#endif /* DEBUG */
+}
+
+// Run each unit test
+static void do_test(const std::vector<std::string>* irt_files, TestResult* res)
+{
+	for (const auto& test_fl : *irt_files) {
+		try {
+			auto test = ir::test(test_fl);
+			std::string result;
+
+			// Check if test should be skipped
+			if (test.skip()) {
+				result = ir::colorize("SKIP", ir::YELLOW) + ": " +
+				                       test.name + " [" + test_fl + "]";
+				res->skipped++;
+				res->console_buf.insert({test_fl, result});
+				continue;
+			}
+
+			// Run test
+			auto ret = test.run();
+
+			if (ret) {
+				result = ir::colorize("PASS", ir::GREEN) + ": " +
+						 test.name + " [" + test_fl + "]";
+				res->console_buf.insert({test_fl, result});
+				res->passed++;
+			} else if (test.xfail.length() > 0) {
+				result = ir::colorize("XFAIL", ir::RED) + ": " +
+						 test.name + " [" + test_fl + "] " +
+						 "XFAIL REASON: " + test.xfail;
+				res->console_buf.insert({test_fl, result});
+				res->xfailed++;
+				res->xfailed_list.push_back({test.name, test.irt_file, test.xfail});
+			} else {
+				result = ir::colorize("FAIL", ir::RED) + ": " +
+						 test.name + " [" + test_fl + "]";
+				res->failed++;
+				res->failed_list.push_back({test.name, test.irt_file});
+
+				// Read diff file
+				if (::show_diff) {
+					std::ifstream f(test.diff_file);
+					std::ostringstream sstr;
+					if (!f) {
+						throw "Couldn't read '" + test.diff_file + "'";
+					}
+					sstr << f.rdbuf() << std::endl;
+					f.close();
+					result += sstr.str();
+				}
+				res->console_buf.insert({test_fl, result});
+			}
+		} catch (ir::broken_test_exception& e) {
+			std::string result = ir::colorize("BROK", ir::RED) + ": [" + test_fl + "]";
+			res->broken++;
+			res->console_buf.insert({test_fl, result});
+			res->broken_list.push_back(test_fl);
+		} catch (std::string& s) {
+			std::string result = ir::colorize("ERROR", ir::RED) + ": " + s;
+			res->console_buf.insert({test_fl, result});
+		} catch (std::exception& e) {
+			std::string result = ir::colorize("ERROR", ir::RED) + ": " + e.what();
+			res->console_buf.insert({test_fl, result});
+		}
+	}
+}
+
+static void print_test_report(std::vector<std::string> total_irt_files,
+							  TestResult total_res)
+{
+	// Print console buffer in file name order, just like single job
+	for (const auto& f : total_irt_files) {
+		std::cerr << total_res.console_buf[f] << "\n";
+	}
+
+	// Produce the summary
+#define SEPARATOR() std::cout << std::string(32, '-') << std::endl
+#define WRAP_OUT(expr) SEPARATOR(); expr; SEPARATOR()
+
+	WRAP_OUT(std::cout << "Test Summary" << std::endl);
+
+	if (total_res.broken > 0) {
+		std::cout << "Bad tests: " << total_res.broken_list.size() << std::endl;
+		WRAP_OUT(for (const std::string& fname : total_res.broken_list) \
+						std::cout << fname << std::endl);
+	}
+
+	std::cout << "Total: " << total_irt_files.size() << std::endl;
+	std::cout << "Passed: " << total_res.passed << std::endl;
+	std::cout << "Expected fail: " << total_res.xfailed << std::endl;
+	std::cout << "Failed: " << total_res.failed << std::endl;
+	std::cout << "Skipped: " << total_res.skipped << std::endl;
+	if (total_res.xfailed_list.size() > 0) {
+		WRAP_OUT(std::cout << "EXPECTED FAILED TESTS" << std::endl);
+		for (const auto& t : total_res.xfailed_list) {
+			std::cout << std::get<0>(t) << " [" << std::get<1>(t) << "]  XFAIL REASON: " << std::get<2>(t) << std::endl;
+		}
+	}
+	if (total_res.failed_list.size() > 0) {
+		WRAP_OUT(std::cout << "FAILED TESTS" << std::endl);
+		for (const auto& t : total_res.failed_list) {
+			std::cout << std::get<0>(t) << " [" << std::get<1>(t) << "]" << std::endl;
+		}
+	}
+	SEPARATOR();
+
+#undef WRAP_OUT
+#undef SEPARATOR
 }
 
 static void print_help(void)
@@ -318,89 +496,57 @@ int main(int argc, char **argv) {
 	::ir_exe = ::this_exe_path + PATH_SEP + "ir" + EXE_SUF;
 	::ir_target = ir::trim(ir::exec(::ir_exe + " --target"));
 
+	std::vector<std::string> total_irt_files;
+	std::vector<std::string> irt_files[jobs];
+	TestResult res[jobs];
+	std::future<void> f[jobs];
+
 	// Get test files, either specified by user or all tests by default
-	std::vector<std::string> irt_files;
 	if (user_files.empty()) {
 		// Pretend user specified all test
 		std::string tests_dir = ::this_exe_path + PATH_SEP + "tests";
 		user_files.insert(tests_dir);
 	}
-	ir::find_tests_in_dir(user_files, irt_files);
 
-	// Run each test
-	for (const std::string& test_fl : irt_files) {
-		try {
-			auto test = ir::test(test_fl);
+	// Walk through all specified directories and find test files
+	ir::find_tests_in_dir(user_files, total_irt_files, irt_files, jobs);
 
-			size_t idx = &test_fl - &irt_files[0] + 1;
-			std::string test_ln_0 = "TEST: " + std::to_string(idx) + PATH_SEP + std::to_string(irt_files.size()) + " " + test.name + "[" + test_fl + "]\r";
-			std::cout << test_ln_0 << std::flush;
+	if (total_irt_files.size() == 0) {
+		std::cerr << ir::colorize("ERROR", ir::RED)
+					 << ": No Test File Found in [";
+		for (const auto& f: user_files) {
+			std::cerr << "'" << f << "' ";
+		}
+		std::cerr << "\b]\n";
+		return 1;
+	}
 
-			if (test.skip()) {
-				std::cout << std::string(test_ln_0.length(), ' ');
-				std::cout << "\r" << ir::colorize("SKIP", ir::YELLOW) << ": " << test.name << " [" << test_fl << "]\n";
-				::skipped++;
-				continue;
+	// Run test in parallel jobs
+	for(int i = 0; i < jobs; i++) {
+		if (irt_files[i].size() > 0) {
+			f[i] = std::async(std::launch::async, do_test, irt_files+i, res+i);
+		}
+	}
+
+	try { // Wait until all jobs done
+		for(int i = 0; i < jobs; i++) {
+			if (irt_files[i].size() > 0) {
+				f[i].get();
 			}
-
-			auto ret = test.run();
-			std::cout << std::string(test_ln_0.length(), ' ');
-
-			if (ret) {
-				std::cout << "\r" << ir::colorize("PASS", ir::GREEN) << ": " << test.name << " [" << test_fl << "]\n";
-			} else if (test.xfail.length() > 0) {
-				std::cout << "\r" << ir::colorize("XFAIL", ir::RED) << ": " << test.name << " [" << test_fl << "]  XFAIL REASON: " << test.xfail << "\n";
-				::xfailed_list.push_back({test.name, test.irt_file, test.xfail});
-			} else {
-				std::cout << "\r" << ir::colorize("FAIL", ir::RED) << ": " << test.name << " [" << test_fl << "]\n";
-				::failed.push_back({test.name, test.irt_file});
-				if (::show_diff) {
-					std::ifstream f(test.diff_file);
-					if (!f) {
-						throw "Couldn't read '" + test.diff_file + "'";
-					}
-					std::cout << f.rdbuf() << std::endl;
-					f.close();
-				}
-			}
-		} catch (ir::broken_test_exception& e) {
-			std::cout << "\r" << ir::colorize("BROK", ir::RED) << ": [" << test_fl << "]\n";
-			::bad_list.push_back(test_fl);
-		} catch (std::string& s) {
-			std::cout << "\r" << ir::colorize("ERROR", ir::RED) << ": " << s << '\n';
-		} catch (std::exception& e) {
-			std::cout << "\r" << ir::colorize("ERROR", ir::RED) << ": " << e.what() << '\n';
 		}
-
-		// XXX parallelize
+	} catch (const std::exception& e) {
+		std::cerr << "EXCEPTION: " << e.what() << "\n";
+		return 1;
 	}
 
-	// Produce the summary
-#define SEPARATOR() std::cout << std::string(32, '-') << std::endl
-#define WRAP_OUT(expr) SEPARATOR(); expr; SEPARATOR()
-	WRAP_OUT(std::cout << "Test Summary" << std::endl);
-	if (::bad_list.size() > 0) {
-		std::cout << "Bad tests: " << ::bad_list.size() << std::endl;
-		WRAP_OUT(for (const std::string& fname : ::bad_list) std::cout << fname << std::endl);
+	// Merge test result from each job
+	TestResult total_res;
+	for (int i = 0; i < jobs; i++) {
+		total_res += res[i];
 	}
-	std::cout << "Total: " << irt_files.size() << std::endl;
-	std::cout << "Passed: " << (irt_files.size() - ::failed.size() - ::skipped) << std::endl;
-	std::cout << "Expected fail: " << ::xfailed_list.size() << std::endl;
-	std::cout << "Failed: " << ::failed.size() << std::endl;
-	std::cout << "Skipped: " << ::skipped << std::endl;
-	if (::xfailed_list.size() > 0) {
-		WRAP_OUT(std::cout << "EXPECTED FAILED TESTS" << std::endl);
-		for (const auto& t : ::xfailed_list) {
-			std::cout << std::get<0>(t) << " [" << std::get<1>(t) << "]  XFAIL REASON: " << std::get<2>(t) << std::endl;
-		}
-	}
-	if (::failed.size() > 0) {
-		WRAP_OUT(std::cout << "FAILED TESTS" << std::endl);
-		for (const auto& t : ::failed) {
-			std::cout << std::get<0>(t) << " [" << std::get<1>(t) << "]" << std::endl;
-		}
-	}
-	SEPARATOR();
 
-	return ::failed.size() > 0 ? 1 : 0;
+	// Print test report
+	print_test_report(total_irt_files, total_res);
+
+	return total_res.failed > 0 ? 1 : 0;
 }
