@@ -497,9 +497,11 @@ int main(int argc, char **argv) {
 	::ir_target = ir::trim(ir::exec(::ir_exe + " --target"));
 
 	std::vector<std::string> total_irt_files;
-	std::vector<std::string> irt_files[jobs];
-	TestResult res[jobs];
-	std::future<void> f[jobs];
+
+	// TODO: check failure and do not forget to release
+	std::vector<std::string>* irt_files = new std::vector<std::string>[jobs];
+	TestResult* res = new TestResult[jobs];
+	std::future<void>* f = new std::future<void>[jobs];
 
 	// Get test files, either specified by user or all tests by default
 	if (user_files.empty()) {
