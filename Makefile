@@ -50,7 +50,7 @@ OBJS_IR_TEST = $(BUILD_DIR)/ir_test.o
 
 #FIXME(Tony): Will become terribly long when we have many many examples.
 #             Consider to use examples/Makefile of their own.
-EXAMPLE_EXES = $(EXAMPLES_BUILD_DIR)/0001-basic $(EXAMPLES_BUILD_DIR)/0001-while $(EXAMPLES_BUILD_DIR)/0005-basic-runner-func
+EXAMPLE_EXES = $(EXAMPLES_BUILD_DIR)/0001-basic $(EXAMPLES_BUILD_DIR)/0001-while $(EXAMPLES_BUILD_DIR)/0005-basic-runner-func $(EXAMPLES_BUILD_DIR)/0006-if $(EXAMPLES_BUILD_DIR)/0007-min
 
 all: $(BUILD_DIR) $(BUILD_DIR)/ir $(BUILD_DIR)/ir_test
 
@@ -93,7 +93,7 @@ $(BUILD_DIR)/ir_emit_$(DASM_ARCH).h: $(SRC_DIR)/ir_$(DASM_ARCH).dasc $(SRC_DIR)/
 $(OBJS_COMMON) $(OBJS_IR) $(OBJS_IR_TEST): $(BUILD_DIR)/$(notdir %.o): $(SRC_DIR)/$(notdir %.c)
 	$(CC) $(CFLAGS) -I$(BUILD_DIR) -o $@ -c $<
 
-$(EXAMPLE_EXES): $(EXAMPLES_BUILD_DIR)/$(notdir %): $(EXAMPLES_SRC_DIR)/$(notdir %.c)
+$(EXAMPLE_EXES): $(EXAMPLES_BUILD_DIR)/$(notdir %): $(EXAMPLES_SRC_DIR)/$(notdir %.c) $(EXAMPLES_SRC_DIR)/exmplfrm.h
 	$(CC) $(CFLAGS) -I$(SRC_DIR) -I$(EXAMPLES_SRC_DIR) $< -o $@ $(OBJS_COMMON) $(LDFLAGS) -lcapstone
 
 $(BUILD_DIR)/ir-test: $(SRC_DIR)/ir-test.cxx

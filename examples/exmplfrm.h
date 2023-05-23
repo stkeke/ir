@@ -31,8 +31,21 @@ int main(int argc, char **argv)
 
 	gen_myfunc(&ctx);
 
+	char dot_file[100];
+	sprintf(dot_file, "%s.dot", argv[0]);
+	FILE* f = fopen(dot_file, "w+");
+	ir_dump_dot(&ctx, f);
+	fclose(f);
+
+	char dot_cmd[256];
+	sprintf(dot_cmd, "./dot.sh %s", dot_file);
+	system(dot_cmd);
+
 	size_t size;
 	void *entry = ir_jit_compile(&ctx, 2, &size);
+
+	ir_save(&ctx, stderr);
+
 	if (entry) {
 		p_func(entry);
 	}

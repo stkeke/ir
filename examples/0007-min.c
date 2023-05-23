@@ -21,13 +21,10 @@
 void gen_myfunc(ir_ctx *ctx)
 {
 	ir_START();
-	ir_ref ret = ir_CONST_I32(0);
-	ir_ref a = ir_VAR(IR_I32, 0);
-	ir_ref b = ir_VAR(IR_I32, 1);
-	ir_ref if1 = ir_IF(ir_LT(a, b));
-	ir_IF_TRUE(if1);
-		ir_RETURN(a);
-	ir_MERGE_WITH_EMPTY_FALSE(if1);
+	ir_ref a = ir_CONST_I32(2);
+	ir_ref b = ir_CONST_I32(1);
+
+	ir_RETURN(ir_MIN_I32(a, b));
 }
 
 /* Usage: custom and standard run_myfunc()
