@@ -44,10 +44,14 @@ int main(int argc, char **argv)
 	size_t size;
 	void *entry = ir_jit_compile(&ctx, 2, &size);
 
+
 	ir_save(&ctx, stderr);
 
 	if (entry) {
+		printf("entry=%p size=%ld\n", entry, size);
 		p_func(entry);
+	} else {
+		printf("ERROR: entry is NULL\n");
 	}
 
 	ir_free(&ctx);
