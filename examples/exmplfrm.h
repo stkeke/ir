@@ -48,6 +48,8 @@ int main(int argc, char **argv)
 
 	puts("After Optimization ...");
 	ir_save(&ctx, stderr);
+	puts("Equivalent C Code ...");
+	ir_emit_c(&ctx, stderr);
 
 	if (entry) {
 		printf("entry=%p size=%ld\n", entry, size);
