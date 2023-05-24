@@ -50,7 +50,7 @@ OBJS_IR_TEST = $(BUILD_DIR)/ir_test.o
 
 #FIXME(Tony): Will become terribly long when we have many many examples.
 #             Consider to use examples/Makefile of their own.
-EXAMPLE_EXES = $(EXAMPLES_BUILD_DIR)/0001-basic $(EXAMPLES_BUILD_DIR)/0001-while $(EXAMPLES_BUILD_DIR)/0005-basic-runner-func $(EXAMPLES_BUILD_DIR)/0001-nop  $(EXAMPLES_BUILD_DIR)/0002-consts $(EXAMPLES_BUILD_DIR)/0006-if $(EXAMPLES_BUILD_DIR)/0007-min $(EXAMPLES_BUILD_DIR)/0008-var $(EXAMPLES_BUILD_DIR)/0008-varaddr $(EXAMPLES_BUILD_DIR)/0009-alloca
+EXAMPLE_EXES = $(EXAMPLES_BUILD_DIR)/0001-basic $(EXAMPLES_BUILD_DIR)/0001-while $(EXAMPLES_BUILD_DIR)/0005-basic-runner-func $(EXAMPLES_BUILD_DIR)/0001-nop  $(EXAMPLES_BUILD_DIR)/0002-consts $(EXAMPLES_BUILD_DIR)/0003-compare $(EXAMPLES_BUILD_DIR)/0006-if $(EXAMPLES_BUILD_DIR)/0007-min $(EXAMPLES_BUILD_DIR)/0008-var $(EXAMPLES_BUILD_DIR)/0008-varaddr $(EXAMPLES_BUILD_DIR)/0009-alloca
 
 all: $(BUILD_DIR) $(BUILD_DIR)/ir $(BUILD_DIR)/ir_test
 
