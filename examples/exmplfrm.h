@@ -30,6 +30,8 @@ int main(int argc, char **argv)
 	ir_init(&ctx, IR_FUNCTION | IR_OPT_FOLDING, 256, 1024);
 
 	gen_myfunc(&ctx);
+	puts("Before Optimization ...");
+	ir_save(&ctx, stderr);
 
 	char dot_file[100];
 	sprintf(dot_file, "%s.dot", argv[0]);
@@ -44,7 +46,7 @@ int main(int argc, char **argv)
 	size_t size;
 	void *entry = ir_jit_compile(&ctx, 2, &size);
 
-
+	puts("After Optimization ...");
 	ir_save(&ctx, stderr);
 
 	if (entry) {
