@@ -23,7 +23,7 @@ void gen_myfunc(ir_ctx *ctx)
 	ir_START();
 	ir_ref size = ir_CONST_I32(1024);
 	ir_ref v = ir_ALLOCA(size);
-	ir_AFREE(v);
+	// ir_AFREE(ir_CONST_I32(1024));
 	ir_RETURN(ir_CONST_I32(0));
 }
 
