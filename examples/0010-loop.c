@@ -16,6 +16,7 @@
  *     for (int i = 0; i < loop_count; i++) {
  *           total += i;
  *     }
+ *
  *     total *= 2;
  *     return total;
  * }
@@ -25,29 +26,35 @@
 // Do NOT change function signature
 void gen_myfunc(ir_ctx *ctx)
 {
+	ir_ref init_idx = ir_CONST_I32(1);
+	ir_ref init_total = ir_CONST_I32(0);
+
 	ir_START();
 	ir_ref cnt = ir_PARAM(IR_I32, "loop_count", 1);
 
-	ir_ref total = ir_VAR(IR_I32, "total");
-	ir_ref init = ir_CONST_I32(0);
-
-	ir_VSTORE(total, ir_CONST_I32(0));
-	// ir_VSTORE(init, ir_CONST_I32(0));
-
+	/* loop begin */
 	ir_ref loop = ir_LOOP_BEGIN(ir_END());
-	ir_ref idx = ir_PHI_2(init, IR_UNUSED);
 
-	ir_ref if1 = ir_IF(ir_LT(idx, cnt));
+	ir_ref phi_idx = ir_PHI_2(init_idx, IR_UNUSED);
+	ir_ref phi_total = ir_PHI_2(init_total, IR_UNUSED);
+
+	ir_ref ret = ir_ADD_I32(phi_total, phi_idx);
+	ir_ref phi_idx_2 = ir_ADD_I32(phi_idx, ir_CONST_I32(1));
+
+	ir_ref cond = ir_GE(phi_idx, cnt);
+	ir_ref if1 = ir_IF(cond);
 	ir_IF_TRUE(if1);
-		ir_VSTORE(total, ir_ADD_I32(ir_VLOAD_I32(total), idx));
-		ir_ref added = ir_ADD_I32(idx, ir_CONST_I32(1));
-		ir_PHI_SET_OP(idx, 2, added);
+		// ir_RETURN(ret);
+		ir_ref end = ir_END();
+	ir_IF_FALSE(if1); /* loop exit */
+		ir_ref loop_end = ir_LOOP_END(); /* loop end */
+	ir_MERGE_SET_OP(loop, 2, loop_end);
+	ir_PHI_SET_OP(phi_idx, 2, phi_idx_2);
+	ir_PHI_SET_OP(phi_total, 2, ret);
 
-		ir_ref loop_end = ir_LOOP_END();
-		ir_MERGE_SET_OP(loop, 2, loop_end);
-	ir_IF_FALSE(if1); /* loop exit*/
-		ir_VSTORE(total, ir_MUL_I32(ir_VLOAD_I32(total), ir_CONST_I32(2)));
-		ir_RETURN(ir_VLOAD_I32(total));
+	ir_BEGIN(end);
+	ir_ref ret2 = ir_ADD_I32(ret, ret);
+	ir_RETURN(ret2);
 }
 
 /* Usage: custom and standard run_myfunc()
@@ -68,6 +75,8 @@ typedef int32_t (*myfunc_t)(int32_t);
 void run_myfunc(myfunc_t func)
 {
 	if (func) {
+		printf("count=%d total=%d\n", 1,  ((myfunc_t)func)(1));
+		printf("count=%d total=%d\n", 5,  ((myfunc_t)func)(5));
 		printf("count=%d total=%d\n", 10,  ((myfunc_t)func)(10));
 	}
 }
