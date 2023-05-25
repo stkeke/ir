@@ -38,23 +38,24 @@ void gen_myfunc(ir_ctx *ctx)
 	ir_ref phi_idx = ir_PHI_2(init_idx, IR_UNUSED);
 	ir_ref phi_total = ir_PHI_2(init_total, IR_UNUSED);
 
+	/* loop body here */
 	ir_ref ret = ir_ADD_I32(phi_total, phi_idx);
-	ir_ref phi_idx_2 = ir_ADD_I32(phi_idx, ir_CONST_I32(1));
 
-	ir_ref cond = ir_GE(phi_idx, cnt);
+	/* loop iteration decision */
+	ir_ref cond = ir_LT(phi_idx, cnt);
 	ir_ref if1 = ir_IF(cond);
 	ir_IF_TRUE(if1);
-		// ir_RETURN(ret);
-		ir_ref end = ir_END();
-	ir_IF_FALSE(if1); /* loop exit */
-		ir_ref loop_end = ir_LOOP_END(); /* loop end */
+		/* idx++ */
+		ir_ref phi_idx_2 = ir_ADD_I32(phi_idx, ir_CONST_I32(1));
+		ir_ref loop_end = ir_LOOP_END();
+	ir_IF_FALSE(if1);
+
+	ir_ref ret2 = ir_ADD_I32(ret, ret);
+	ir_RETURN(ret2);
+
 	ir_MERGE_SET_OP(loop, 2, loop_end);
 	ir_PHI_SET_OP(phi_idx, 2, phi_idx_2);
 	ir_PHI_SET_OP(phi_total, 2, ret);
-
-	ir_BEGIN(end);
-	ir_ref ret2 = ir_ADD_I32(ret, ret);
-	ir_RETURN(ret2);
 }
 
 /* Usage: custom and standard run_myfunc()
