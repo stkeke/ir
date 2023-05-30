@@ -36,3 +36,23 @@ end
 document dump_def_use_lists
     Usage: dump_def_use_lists ctx_ptr
 end
+
+# $arg0: pointer to ir_ctx{}
+define dump_prev_ref
+    if $argc == 0
+        help dump_prev_ref
+    else
+        set $ctx = (ir_ctx*) $arg0
+    end
+
+    set $idx = 1
+    printf "prev_ref count = %d\n", $ctx->insns_count
+    while ($idx < $ctx->insns_count)
+        printf "%03d %d\n", $idx, $ctx->prev_ref[$idx]
+        set $idx = $idx + 1
+    end
+end
+
+document dump_prev_ref
+    Usage: dump_prev_ref ctx_ptr
+end
