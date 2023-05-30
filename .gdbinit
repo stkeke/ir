@@ -56,3 +56,23 @@ end
 document dump_prev_ref
     Usage: dump_prev_ref ctx_ptr
 end
+
+# $arg0: pointer to ir_ctx{}
+define dump_rules
+    if $argc == 0
+        help dump_rules
+    else
+        set $ctx = (ir_ctx*) $arg0
+    end
+
+    set $idx = 0
+    printf "rules count = %d\n", $ctx->insns_count
+    while ($idx < $ctx->insns_count)
+        printf "%03d %d\n", $idx, $ctx->rules[$idx]
+        set $idx = $idx + 1
+    end
+end
+
+document dump_rules
+    Usage: dump_rules ctx_ptr
+end
