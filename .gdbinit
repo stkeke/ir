@@ -68,11 +68,44 @@ define dump_rules
     set $idx = 0
     printf "rules count = %d\n", $ctx->insns_count
     while ($idx < $ctx->insns_count)
-        printf "%03d %d\n", $idx, $ctx->rules[$idx]
+        printf "%03d ", $idx
+
+        # print instruction
+        print_op $ctx->ir_base[$idx].op
+
+        # Trick: print rule
+        # print rule number value
+        printf " %d\t", $ctx->rules[$idx]
+
+        # Try to print rule name, or op name, or nothing
+        print_rule $ctx->rules[$idx]
+        print_op $ctx->rules[$idx]
+
+        printf "\n"
         set $idx = $idx + 1
     end
 end
 
 document dump_rules
     Usage: dump_rules ctx_ptr
+end
+
+# $arg0: pointer to ir_ctx{}
+define dump_vregs
+    if $argc == 0
+        help dump_vregs
+    else
+        set $ctx = (ir_ctx*) $arg0
+    end
+
+    set $idx = 1
+    printf "vregs count = %d\n", $ctx->vregs_count
+    while ($idx <= $ctx->vregs_count)
+        printf "%03d %d\n", $idx, $ctx->vregs[$idx]
+        set $idx = $idx + 1
+    end
+end
+
+document dump_vregs
+    Usage: dump_vregs ctx_ptr
 end
