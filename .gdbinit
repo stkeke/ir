@@ -1,7 +1,28 @@
 define dump_ctx
+    set $ctx = $arg0
+    set $idx = 0
+    while ($idx < $ctx->insns_count)
+        dump_insn $ctx->ir_base+$idx
+        set $idx = $idx + 1
+    end
 end
 
 
+# $arg0: insn_ptr
+define dump_insn
+    set $insn = (ir_insn*) $arg0
+    printf "addr=%p ", $insn
+    print_op $insn->op
+    printf " "
+    print_type $insn->type
+    printf " "
+    printf "(%d) ", $insn->inputs_count
+
+    # dump ops
+    printf "op1=%d ", $insn->op1
+    printf "op2=%d ", $insn->op2
+    printf "op3=%d\n", $insn->op3
+end
 
 # $arg0: pointer to ir_ctx{}
 define dump_def_use_lists
