@@ -134,3 +134,102 @@ end
 document dump_vregs
     Usage: dump_vregs ctx_ptr
 end
+
+# $arg0: instruction opcode
+define dump_ir_op_flag
+    set $op = (uint8_t) $arg0
+    print_op $op
+    set $flag = ir_op_flags[$op]
+    printf ",\tFlag: 0x%08x ", $flag
+    dump_operand_kind $flag
+    printf ", Operands Count: %d", ($flag & 0x18)>>3
+    printf ", Input Edges: %d", ($flag & 0x3)
+    printf ", Flag:"
+    if $flag & 0x4
+        printf " VAR_INPUTS"
+    end
+    if $flag & 0x100
+        printf " DATA"
+    end
+    if $flag & 0x200
+        printf " CONTROL"
+    end
+    if $flag & 0x400
+        printf " MEM"
+    end
+
+    if $flag & 0x1000
+        printf " BB_START"
+    end
+    if $flag & 0x2000
+        printf " BB_END"
+    end
+    if $flag & 0x4000
+        printf " TERMINATOR"
+    end
+    if $flag & 0x8000
+        printf " PINNED"
+    end
+    printf "\n"
+end
+
+# $arg0: flag
+define dump_operand_kind
+    set $kind = (uint32_t)$arg0 >> 16
+
+    set $op1_kind = ($kind & 0x00F0) >> 4
+    set $op2_kind = ($kind & 0x0F00) >> 8
+    set $op3_kind = ($kind & 0xF000) >> 12
+
+    printf "("
+    _dump_operand_kind $op1_kind
+    printf ", "
+    _dump_operand_kind $op2_kind
+    printf ", "
+    _dump_operand_kind $op3_kind
+    printf ")"
+end
+
+define _dump_operand_kind
+# ir_private.h IR_OPND_XXXX
+    set $op_kind = $arg0
+    if $op_kind == 0x0
+        printf "unused"
+    end
+
+    if $op_kind == 0x1
+        printf "def/ref/var"
+    end
+
+    if $op_kind == 0x2
+        printf "src"
+    end
+
+    if $op_kind == 0x3
+        printf "reg"
+    end
+
+    if $op_kind == 0x4
+        printf "ret"
+    end
+
+    if $op_kind == 0x5
+        printf "str"
+    end
+
+    if $op_kind == 0x6
+        printf "num"
+    end
+
+    if $op_kind == 0x7
+        printf "prb/opt"
+    end
+end
+
+define dump_all_op_flag
+    set $op = 0
+    while $op < IR_LAST_OP
+        dump_ir_op_flag $op
+        set $op = $op + 1
+    end
+end
