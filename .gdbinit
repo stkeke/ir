@@ -39,17 +39,21 @@ define dump_def_use_lists
 
     # Dump details
     set $idx = 1
-    printf "*** use_lists ***\n"
+    printf "*** use_lists ([Insn_Idx] Edges_Idx, Count) ***\n"
     while ( $idx < $ctx->insns_count )
         set $list = $ctx->use_lists[$idx]
-        printf "[%03d] (%d, %d)\n", $idx, $list.refs, $list.count
+        printf "[%03d ", $idx
+        print_op $ctx->ir_base[$idx].op
+        printf "] (%d, %d)\n", $list.refs, $list.count
         set $idx = $idx + 1
     end
 
     set $idx = 0
-    printf "*** use_edges ***\n"
+    printf "*** use_edges ([Edges_Idx] Insn_Idx) ***\n"
     while ( $idx < $ctx->use_edges_count )
-        printf "[%03d] (%d)\n", $idx, $ctx->use_edges[$idx]
+        printf "[%03d] (%d ", $idx, $ctx->use_edges[$idx]
+        print_op $ctx->ir_base[$ctx->use_edges[$idx]].op
+        printf ")\n"
         set $idx = $idx + 1
     end
 end
